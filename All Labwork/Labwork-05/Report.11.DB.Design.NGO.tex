@@ -1,0 +1,214 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[top=2.2cm, bottom=2.2cm, left=2.5cm, right=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage{array}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\linespread{1.08}
+
+\setlist[itemize]{topsep=2pt, itemsep=3pt, parsep=0pt, leftmargin=1.5em}
+
+\fvset{
+    fontsize=\footnotesize,
+    frame=single,
+    framesep=5pt,
+    samepage=false,
+    xleftmargin=2pt,
+    xrightmargin=2pt
+}
+\title{\textbf{Report.11.DB.Design.NGO}\\[0.3em]\large Database design report -- NGO database}
+\author{Tran Bao Ngoc \\ Student ID: 2640118}
+\date{Information Systems (MI1.02a) \\ Labwork 05 -- Database design (exercise 2: NGO)}
+
+\begin{document}
+\maketitle
+
+\section{The problem}
+A non-government organization wants one database for all its projects. It has head offices in several countries, and each head office manages the projects of its country. For a head office I store an identifier, the city and country, the address, the phone number and the name of the director. A head office manages a set of projects, and each project has a code, a title, a start and an end date, a budget and the name of the person in charge. A project is made of actions, and these actions can affect several cities. For each city I store an identifier, the name, the country and the number of inhabitants. I also need to know which actions happen in which city, with a short description of the action, and how much of the project's investment goes to that city.
+
+\section{How I made the structure}
+
+\subsection{Conceptual model}
+I found four entities: head office, project, action and city.
+\begin{itemize}
+    \item \textbf{Head\_office}: office id (key), city, country, address, phone, director name.
+    \item \textbf{Project}: project code (key), title, start date, end date, budget, person in charge.
+    \item \textbf{Action}: action id (key) and a description.
+    \item \textbf{City}: city id (key), name, country, population.
+\end{itemize}
+
+Relationships:
+\begin{itemize}
+    \item A head office manages many projects, and a project belongs to one head office (one to many).
+    \item A project is made of many actions, and an action belongs to one project (one to many).
+    \item A project can invest in many cities and a city can get investment from many projects (many to many). The amount of investment is an attribute of this relationship.
+    \item An action can affect several cities and a city can have several actions (many to many).
+\end{itemize}
+
+\subsection{Logical model}
+\begin{itemize}
+    \item \texttt{Head\_office(\underline{OfficeID}, City, Country, Address, Phone, DirectorName)} -- primary key: \texttt{OfficeID}
+    \item \texttt{Project(\underline{ProjectCode}, Title, StartDate, EndDate, Budget, PersonInCharge, OfficeID)} -- primary key: \texttt{ProjectCode}; foreign key: \texttt{OfficeID} $\rightarrow$ \texttt{Head\_office}
+    \item \texttt{Action(\underline{ActionID}, Description, ProjectCode)} -- primary key: \texttt{ActionID}; foreign key: \texttt{ProjectCode} $\rightarrow$ \texttt{Project}
+    \item \texttt{City(\underline{CityID}, CityName, Country, Population)} -- primary key: \texttt{CityID}
+    \item \texttt{Project\_city(\underline{ProjectCode, CityID}, Investment)} -- primary key: \texttt{(ProjectCode, CityID)}; foreign keys: \texttt{ProjectCode} $\rightarrow$ \texttt{Project}, \texttt{CityID} $\rightarrow$ \texttt{City}
+    \item \texttt{Action\_city(\underline{ActionID, CityID})} -- primary key: \texttt{(ActionID, CityID)}; foreign keys: \texttt{ActionID} $\rightarrow$ \texttt{Action}, \texttt{CityID} $\rightarrow$ \texttt{City}
+\end{itemize}
+
+The two many to many relationships became the tables \texttt{Project\_city} and \texttt{Action\_city}. Investment is in \texttt{Project\_city} because it depends on both the project and the city.
+
+About normal forms: all values are single values (1NF). In the two tables with a composite key, the non-key columns depend on the whole key (2NF), and no non-key column depends on another non-key column (3NF).
+
+\subsection{Physical model}
+The ER diagram is in \texttt{Labwork-05b.png}. Office, action and city ids are \texttt{AUTO\_INCREMENT}. Budget and investment use \texttt{DECIMAL(15,2)} so money values are exact. Foreign keys use \texttt{ON UPDATE CASCADE} and \texttt{ON DELETE CASCADE}.
+
+\section{SQL commands to create the database}
+\begin{Verbatim}
+DROP DATABASE IF EXISTS ngo_db;
+CREATE DATABASE ngo_db;
+USE ngo_db;
+
+-- 1. Table: Head_office
+CREATE TABLE HEAD_OFFICE (
+    OfficeID INT NOT NULL AUTO_INCREMENT,
+    City VARCHAR(100) NOT NULL,
+    Country VARCHAR(100) NOT NULL,
+    Address VARCHAR(255) NOT NULL,
+    Phone VARCHAR(50) NOT NULL,
+    DirectorName VARCHAR(100) NOT NULL,
+    PRIMARY KEY (OfficeID)
+);
+
+-- 2. Table: Project
+CREATE TABLE PROJECT (
+    ProjectCode VARCHAR(50) NOT NULL,
+    Title VARCHAR(255) NOT NULL,
+    StartDate DATE NOT NULL,
+    EndDate DATE NOT NULL,
+    Budget DECIMAL(15, 2) NOT NULL,
+    PersonInCharge VARCHAR(100) NOT NULL,
+    OfficeID INT NOT NULL,
+    PRIMARY KEY (ProjectCode),
+    FOREIGN KEY (OfficeID) REFERENCES HEAD_OFFICE(OfficeID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+-- 3. Table: Action
+CREATE TABLE ACTION (
+    ActionID INT NOT NULL AUTO_INCREMENT,
+    Description TEXT NOT NULL,
+    ProjectCode VARCHAR(50) NOT NULL,
+    PRIMARY KEY (ActionID),
+    FOREIGN KEY (ProjectCode) REFERENCES PROJECT(ProjectCode)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+-- 4. Table: City
+CREATE TABLE CITY (
+    CityID INT NOT NULL AUTO_INCREMENT,
+    CityName VARCHAR(100) NOT NULL,
+    Country VARCHAR(100) NOT NULL,
+    Population INT NOT NULL,
+    PRIMARY KEY (CityID)
+);
+
+-- 5. Table: Project_city
+CREATE TABLE PROJECT_CITY (
+    ProjectCode VARCHAR(50) NOT NULL,
+    CityID INT NOT NULL,
+    Investment DECIMAL(15, 2) NOT NULL,
+    PRIMARY KEY (ProjectCode, CityID),
+    FOREIGN KEY (ProjectCode) REFERENCES PROJECT(ProjectCode)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    FOREIGN KEY (CityID) REFERENCES CITY(CityID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+-- 6. Table: Action_city
+CREATE TABLE ACTION_CITY (
+    ActionID INT NOT NULL,
+    CityID INT NOT NULL,
+    PRIMARY KEY (ActionID, CityID),
+    FOREIGN KEY (ActionID) REFERENCES ACTION(ActionID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    FOREIGN KEY (CityID) REFERENCES CITY(CityID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+\end{Verbatim}
+
+\section{DESCRIBE commands and their outputs}
+\begin{Verbatim}
+-- DESCRIBE HEAD_OFFICE;
++--------------+--------------+------+-----+---------+----------------+
+| Field        | Type         | Null | Key | Default | Extra          |
++--------------+--------------+------+-----+---------+----------------+
+| OfficeID     | int          | NO   | PRI | NULL    | auto_increment |
+| City         | varchar(100) | NO   |     | NULL    |                |
+| Country      | varchar(100) | NO   |     | NULL    |                |
+| Address      | varchar(255) | NO   |     | NULL    |                |
+| Phone        | varchar(50)  | NO   |     | NULL    |                |
+| DirectorName | varchar(100) | NO   |     | NULL    |                |
++--------------+--------------+------+-----+---------+----------------+
+
+-- DESCRIBE PROJECT;
++----------------+---------------+------+-----+---------+-------+
+| Field          | Type          | Null | Key | Default | Extra |
++----------------+---------------+------+-----+---------+-------+
+| ProjectCode    | varchar(50)   | NO   | PRI | NULL    |       |
+| Title          | varchar(255)  | NO   |     | NULL    |       |
+| StartDate      | date          | NO   |     | NULL    |       |
+| EndDate        | date          | NO   |     | NULL    |       |
+| Budget         | decimal(15,2) | NO   |     | NULL    |       |
+| PersonInCharge | varchar(100)  | NO   |     | NULL    |       |
+| OfficeID       | int           | NO   | MUL | NULL    |       |
++----------------+---------------+------+-----+---------+-------+
+
+-- DESCRIBE ACTION;
++-------------+-------------+------+-----+---------+----------------+
+| Field       | Type        | Null | Key | Default | Extra          |
++-------------+-------------+------+-----+---------+----------------+
+| ActionID    | int         | NO   | PRI | NULL    | auto_increment |
+| Description | text        | NO   |     | NULL    |                |
+| ProjectCode | varchar(50) | NO   | MUL | NULL    |                |
++-------------+-------------+------+-----+---------+----------------+
+
+-- DESCRIBE CITY;
++------------+--------------+------+-----+---------+----------------+
+| Field      | Type         | Null | Key | Default | Extra          |
++------------+--------------+------+-----+---------+----------------+
+| CityID     | int          | NO   | PRI | NULL    | auto_increment |
+| CityName   | varchar(100) | NO   |     | NULL    |                |
+| Country    | varchar(100) | NO   |     | NULL    |                |
+| Population | int          | NO   |     | NULL    |                |
++------------+--------------+------+-----+---------+----------------+
+
+-- DESCRIBE PROJECT_CITY;
++-------------+---------------+------+-----+---------+-------+
+| Field       | Type          | Null | Key | Default | Extra |
++-------------+---------------+------+-----+---------+-------+
+| ProjectCode | varchar(50)   | NO   | PRI | NULL    |       |
+| CityID      | int           | NO   | PRI | NULL    |       |
+| Investment  | decimal(15,2) | NO   |     | NULL    |       |
++-------------+---------------+------+-----+---------+-------+
+
+-- DESCRIBE ACTION_CITY;
++----------+------+------+-----+---------+-------+
+| Field    | Type | Null | Key | Default | Extra |
++----------+------+------+-----+---------+-------+
+| ActionID | int  | NO   | PRI | NULL    |       |
+| CityID   | int  | NO   | PRI | NULL    |       |
++----------+------+------+-----+---------+-------+
+\end{Verbatim}
+
+\end{document}
